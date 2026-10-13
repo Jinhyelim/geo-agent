@@ -1,0 +1,7 @@
+# pgvector 공식 이미지(최신 Debian 기반, PostgreSQL 공식 apt 저장소 사용 가능)에 PostGIS를 추가 설치한다.
+# 처음에는 postgis/postgis:16-3.4 위에 pgvector를 설치했으나, 그 이미지가 지원 종료된
+# Debian bullseye 기반이라 PostgreSQL apt 저장소가 404를 반환해 빌드가 실패했다.
+FROM pgvector/pgvector:pg16
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-16-postgis-3 \
+ && rm -rf /var/lib/apt/lists/*

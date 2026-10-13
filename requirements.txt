@@ -1,0 +1,20 @@
+# 웹 API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic-settings>=2.4
+
+# DB (PostgreSQL + PostGIS + pgvector)
+psycopg[binary]>=3.2
+pgvector>=0.3
+
+# LLM / 외부 API 호출
+openai>=1.50
+httpx>=0.27
+tenacity>=9.0
+
+# 데이터 적재 / 문서 처리
+pandas>=2.2
+pypdf>=5.0
+
+# 테스트
+pytest>=8.3

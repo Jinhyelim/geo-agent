@@ -1,0 +1,9 @@
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.env
+data/raw/
+data/docs/
+*.log
+.codex/
