@@ -8,7 +8,10 @@ import numpy as np
 from app.core.db import get_conn
 from app.rag.embedding import embed_texts
 
-MIN_SIMILARITY = 0.3  # 코사인 유사도 기준. 실제 문서를 넣은 뒤 결과를 보고 조정한다.
+# 코사인 유사도 기준. 실제 문서 3개(186조각)로 측정한 값을 보고 정했다.
+#   관련 있는 질문: 0.43 ~ 0.59 / 문서에 없는 질문("강남역 맛집"): 0.32 ~ 0.34
+# 처음 0.3으로 두었을 때 관련 없는 표 조각까지 '근거'로 통과해서 0.4로 올렸다.
+MIN_SIMILARITY = 0.4
 
 
 def search_docs(query: str, top_k: int = 4) -> dict:
