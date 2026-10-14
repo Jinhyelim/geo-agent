@@ -15,7 +15,7 @@ def show(title: str, data: dict) -> None:
 
 
 if __name__ == "__main__":
-    for q in ["광화문", "종로3가역", "세종대로 172", "사직동", "없는장소xyz"]:
+    for q in ["광화문", "종로3가역", "세종대로 172", "사직동", "강남역", "없는장소xyz"]:
         show(f"geocode('{q}')", geocode(q))
 
     g = geocode("광화문")

@@ -27,9 +27,11 @@ log = logging.getLogger(__name__)
 
 KAKAO_BASE = "https://dapi.kakao.com/v2/local/search"
 
-# 종로구 대략 범위(경도/위도). 키워드 검색 결과를 이 범위 안으로 좁힌다.
-# 같은 이름의 장소가 다른 지역에도 있을 수 있기 때문이다 (예: "중앙시장").
-JONGNO_RECT = "126.94,37.56,127.02,37.63"
+SERVICE_AREA = "종로구"  # 이 프로젝트의 분석 범위. 상가 데이터도 종로구만 적재되어 있다.
+
+# 처음에는 키워드 검색을 종로구 사각형 범위(rect)로 제한했는데,
+# "강남역"처럼 범위 밖 장소를 물으면 범위 안의 엉뚱한 장소가 대신 잡혔다.
+# 그래서 범위 제한 없이 검색한 뒤, 결과 주소가 종로구인지 코드로 확인한다.
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -69,17 +71,21 @@ def looks_like_address(query: str) -> bool:
 def _from_kakao(query: str) -> dict | None:
     if not settings.kakao_rest_api_key:
         return None
-    keyword = ("keyword.json", {"query": query, "rect": JONGNO_RECT, "size": 1})
-    address = ("address.json", {"query": query, "size": 1})
+    keyword = ("keyword.json", {"query": query, "size": 5})
+    address = ("address.json", {"query": query, "size": 5})
     attempts = [address, keyword] if looks_like_address(query) else [keyword, address]
+    outside = None  # 결과는 있었지만 모두 종로구 밖이었던 경우의 주소
     for path, params in attempts:
         try:
             docs = _kakao_get(path, params)
         except Exception as e:  # noqa: BLE001 - 어떤 실패든 다음 단계로 넘어간다
             log.warning("[geocode] kakao %s 실패: %s", path, e)
             continue
-        if docs:
-            d = docs[0]
+        in_area = [d for d in docs if SERVICE_AREA in (d.get("address_name") or "")]
+        if docs and not in_area:
+            outside = outside or docs[0].get("address_name")
+        if in_area:
+            d = in_area[0]  # 같은 이름이 여러 지역에 있으면 종로구 것을 고른다 (예: "중앙시장")
             return {
                 "ok": True,
                 "lat": float(d["y"]),   # 카카오는 x=경도, y=위도 (4326)
@@ -88,6 +94,10 @@ def _from_kakao(query: str) -> dict | None:
                 "address": d.get("road_address_name") or d.get("address_name"),
                 "source": f"kakao:{path.split('.')[0]}",
             }
+    if outside:
+        return {"ok": False, "error": "out_of_service_area", "query": query,
+                "found_address": outside,
+                "message": f"'{query}'은(는) {SERVICE_AREA} 밖({outside})이라 분석 범위가 아닙니다."}
     return None
 
 
@@ -130,6 +140,7 @@ def geocode(query: str) -> dict:
         or _from_kakao(query)                    # 2) 카카오 (주소/키워드 순서는 질문 형태로 결정)
         or _from_dong_centroid(query)            # 3) 외부 API 실패 시 근사 fallback
     )
+    # 서비스 지역 밖으로 확인된 경우는 fallback으로 덮지 않고 그대로 알린다.
     if result:
         return result
     return {"ok": False, "error": "not_found", "query": query}
