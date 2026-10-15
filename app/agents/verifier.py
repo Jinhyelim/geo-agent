@@ -7,6 +7,7 @@ import json
 import re
 
 from app.agents.state import AgentState
+from app.agents.writer import STORE_DATA_SOURCE
 
 NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 MAX_RETRIES = 1
@@ -26,6 +27,9 @@ def _numbers(text: str) -> set[str]:
 def _evidence_numbers(state: AgentState) -> set[str]:
     evidence = [state["question"], json.dumps(state.get("plan") or {}, ensure_ascii=False),
                 json.dumps(state.get("facts") or [], ensure_ascii=False)]
+    if state.get("facts"):
+        # 출처 표기 속 날짜(2026.06)를 '근거 없는 숫자'로 오판하지 않게 한다.
+        evidence.append(STORE_DATA_SOURCE)
     for d in state.get("docs") or []:
         evidence += [d["source"], str(d["page"]), d["content"]]
     return _numbers(" ".join(evidence))

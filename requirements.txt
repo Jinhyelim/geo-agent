@@ -17,5 +17,9 @@ tenacity>=9.0
 pandas>=2.2
 pypdf>=5.0
 
+# 하이브리드 검색 (키워드 검색 + 한국어 형태소 분석)
+rank_bm25>=0.2
+kiwipiepy>=0.20
+
 # 테스트
 pytest>=8.3
