@@ -18,7 +18,32 @@ from app.core.db import get_conn
 # 뜻을 가진 형태소만 사용: 일반/고유명사(NNG, NNP), 외국어(SL), 숫자(SN), 어근(XR)
 KEEP_TAGS = {"NNG", "NNP", "SL", "SN", "XR"}
 
-_kiwi = Kiwi()
+def _load_dong_names() -> list[str]:
+    """DB에 적재된 종로구 행정동 이름 (예: 창신2동, 종로1·2·3·4가동)."""
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT dong FROM stores WHERE dong IS NOT NULL")
+            return [r[0] for r in cur.fetchall()]
+    except Exception:  # noqa: BLE001 - DB가 없어도 검색은 동작하게 (사전 없이 진행)
+        return []
+
+
+def _build_kiwi() -> Kiwi:
+    """형태소 분석기 + 사용자 사전.
+
+    사전 없이 나누면 "창신2동"이 "창신 / 2 / 동"으로 쪼개진다. "2"와 "동"은 거의 모든 청크에 있어
+    변별력이 없고, "창신"은 창신1·2·3동을 구분하지 못해 정답 청크가 키워드 검색 54위로 밀렸다.
+    그래서 행정동 이름을 '쪼개지 않는 고유명사'로 등록한다. 질문과 문서를 같은 사전으로 나눈다.
+    """
+    kiwi = Kiwi()
+    for name in _load_dong_names():
+        # DB는 "종로5.6가동"(마침표), 보고서는 "종로5·6가동"(가운뎃점)이라 두 표기를 모두 등록
+        for variant in {name, name.replace(".", "·")}:
+            kiwi.add_user_word(variant, "NNP", 10.0)
+    return kiwi
+
+
+_kiwi = _build_kiwi()
 
 
 def tokenize(text: str) -> list[str]:
