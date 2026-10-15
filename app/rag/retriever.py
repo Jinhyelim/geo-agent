@@ -9,7 +9,7 @@ import numpy as np
 
 from app.core.db import get_conn
 from app.rag.embedding import embed_texts
-from app.rag.keyword import keyword_search, proper_nouns
+from app.rag.keyword import in_corpus, keyword_search, proper_nouns
 
 # 코사인 유사도 기준. 실제 문서 3개(186조각)로 측정한 값을 보고 정했다.
 #   관련 있는 질문: 0.43 ~ 0.59 / 문서에 없는 질문("강남역 맛집"): 0.32 ~ 0.34
@@ -22,6 +22,12 @@ MIN_SIMILARITY = 0.4
 # 그래서 '질문의 고유명사가 조각에 그대로 들어 있으면' 0.3까지 근거로 인정한다.
 # 문서에 없는 질문("강남역 맛집")은 고유명사가 어느 조각에도 없어 여전히 걸러진다.
 KEYWORD_MIN_SIMILARITY = 0.3
+
+# 범위 밖 고유명사 확인. 평가 세트(eval/)로 측정해 보니 문서에 없는 질문 5개 중 3개가 근거를 받아 갔다.
+#   "부산 해운대 상권" 0.426, "성수동 카페 창업" 0.410 → 정답 청크(광화문 0.41)와 유사도가 겹쳐 기준값으로는 못 거름.
+# 그래서 질문의 고유명사가 문서 전체에 하나도 없으면(부산·해운대·성수동) 문서 범위 밖으로 보고 거절한다.
+# 하나라도 있으면("스타벅스 광화문점"의 광화문) 통과시켜, 정상 질문을 막지 않게 했다.
+OUT_OF_SCOPE_CHECK = True
 
 CANDIDATES = 20  # 두 검색에서 각각 가져올 후보 수
 RRF_K = 60       # RRF 상수. 순위 1위와 2위의 점수 차이를 완만하게 만든다 (논문 기본값).
@@ -75,6 +81,12 @@ def search_docs(query: str, top_k: int = 4, mode: str = "hybrid") -> dict:
         qvec = np.array(embed_texts([query])[0])
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"embedding_failed: {e.__class__.__name__}"}
+
+    if mode != "vector" and OUT_OF_SCOPE_CHECK:
+        nouns = proper_nouns(query)
+        if nouns and not any(in_corpus(n) for n in nouns):
+            return {"ok": True, "found": False,
+                    "message": f"문서 범위 밖의 지명입니다: {', '.join(nouns)}"}
 
     vector_hits = _vector_search(qvec, CANDIDATES)
     if mode == "vector":

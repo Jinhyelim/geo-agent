@@ -7,6 +7,7 @@
 한국어는 띄어쓰기 단위로 자르면 '광화문역은', '광화문역이'가 서로 다른 단어가 되므로
 형태소 분석기(kiwipiepy)로 명사·외국어·숫자 등 뜻을 가진 부분만 뽑아 쓴다.
 """
+import re
 from functools import lru_cache
 
 from kiwipiepy import Kiwi
@@ -41,6 +42,26 @@ def _index() -> tuple[BM25Okapi, list[tuple]]:
         rows = cur.fetchall()
     corpus = [tokenize(r[3]) for r in rows]
     return BM25Okapi(corpus), rows
+
+
+@lru_cache(maxsize=1)
+def _vocabulary() -> frozenset[str]:
+    bm25, _ = _index()
+    return frozenset(t for doc in bm25.doc_freqs for t in doc)
+
+
+def in_corpus(term: str) -> bool:
+    """이 단어가 문서 어딘가에 '단어로' 나오는지.
+
+    - 글자 포함(term in 원문)만 보면 "부산"이 "세부산출내역" 안에 있어 오판했다.
+    - 형태소 단어 목록만 보면 "세종마을음식문화거리"를 다르게 잘라 "세종"을 놓쳤다.
+    → 단어 목록에 있거나, 원문에서 '단어의 시작'(앞에 한글이 없는 위치)으로 나오면 있다고 본다.
+    """
+    if term in _vocabulary():
+        return True
+    pattern = re.compile(rf"(?<![가-힣]){re.escape(term)}")
+    _, rows = _index()
+    return any(pattern.search(r[3]) for r in rows)
 
 
 def keyword_search(query: str, top_k: int = 20) -> list[dict]:
